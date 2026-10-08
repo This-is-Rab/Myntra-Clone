@@ -1,24 +1,19 @@
-# Use node:alpine as the base image
-FROM node:alpine
-
-# Set the working directory inside the container
+# ---------- Build stage ----------
+FROM node:18-alpine AS build
 WORKDIR /app
 
-# Copy package.json and package-lock.json to the container
-COPY package.json package-lock.json ./
+COPY package*.json ./
+RUN npm ci
 
-# Install dependencies
-RUN npm install
-
-# Copy the entire project to the container
 COPY . .
-
-# Build the React app
 RUN npm run build
 
-# Expose port 3000 (change if your app runs on a different port)
-EXPOSE 3000
+# ---------- Runtime stage ----------
+FROM nginx:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/build /usr/share/nginx/html
 
-# Start the React app
-CMD ["npm", "start"]
-
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -qO- http://localhost/ >/dev/null || exit 1
+CMD ["nginx", "-g", "daemon off;"]
